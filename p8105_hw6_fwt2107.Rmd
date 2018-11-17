@@ -73,5 +73,26 @@ compared to homicides in which the victim was non-white. We are 95% confident
 that Baltimore homicides involving white victims had between 1.68 to 1.89 times
 the odds of being resolved compared to homicides involving non-white victims.
 
+### Fitting a logistic regression model for resolved vs. unresolved homicides
+### in all cities listed in the dataset
+```{r}
+logistic_regression <- function(df) {
+  broom::tidy(glm(solved_binary ~ victim_age + victim_sex + victim_race, 
+                  data = df, family = binomial()))
+}
+
+homicide_df %>% 
+  group_by(city_state) %>% 
+  nest %>% 
+  mutate(log_results = purrr::map(data, logistic_regression)) %>% 
+  select(city_state, log_results) %>% 
+  unnest %>%
+  filter(term == "victim_racewhite") %>% 
+  mutate(OR = exp(estimate),
+         CI_lower_limit = exp(estimate - 1.96*std.error),
+         CI_upper_limit = exp(estimate + 1.96*std.error)) %>% 
+  select(city_state, estimate, OR, CI_lower_limit, CI_upper_limit)
+  
+```
 
 
