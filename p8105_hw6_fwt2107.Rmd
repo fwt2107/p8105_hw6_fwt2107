@@ -1,0 +1,54 @@
+---
+title: "p8105_hw6_fwt2107"
+author: "Felix Tran"
+date: "November 17, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(theme_bw() + theme(legend.position = "right"))
+```
+
+# Problem 1
+
+### Data cleaning
+
+1. Read in the dataset from the Washington Post's github page
+
+2. Create a **city_state** variable to combine each homicide's city and state
+
+3. Remove all homicides which were recorded in Dallas, TX; Phoenix, AZ; Kansas
+City, MO; and Tulsa, AL
+
+4. Transform **victim_age** into a numeric variable
+
+5. Transform **victim_race** into a binary variable (white vs. non-white)
+
+6. Create a **solved_binary** binary variable for the outcome of each homicide
+(solved vs. unsolved)
+```{r}
+data_url <- RCurl::getURL('https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv')
+
+homicide_df <- readr::read_csv(data_url) %>% 
+  mutate(city_state = stringr::str_c(city, ', ',state)) %>% 
+  filter(!(city_state %in% c('Dallas, TX', 'Phoenix, AZ', 'Kansas City, MO', 
+                             'Tulsa, AL'))) %>% 
+  mutate(victim_age = as.numeric(victim_age),
+         victim_race = ifelse(victim_race == "White", "white", "non-white"),
+         solved_binary = ifelse(disposition == "Closed by arrest", "solved", 
+                                "unsolved"))
+```
+
+```{r}
+
+```
+
