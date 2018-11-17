@@ -8,6 +8,9 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(modelr)
+library(mgcv)
+library(purrr)
 
 knitr::opts_chunk$set(
   fig.width = 6,
@@ -67,6 +70,7 @@ baltimore_log %>%
          CI_upper_limit = exp(estimate + 1.96*std.error)) %>% 
   select(term, estimate, OR, CI_lower_limit, CI_upper_limit)
 ```
+
 After adjusting for victim age and sex, homicides in Baltimore, MD in which the 
 victim was white had approximately 1.78 times the odds of being resolved 
 compared to homicides in which the victim was non-white. We are 95% confident
@@ -99,7 +103,7 @@ logistic_regression <- function(df) {
 regression_df <- homicide_df %>% 
   group_by(city_state) %>% 
   nest %>% 
-  mutate(log_results = purrr::map(data, logistic_regression)) %>% 
+  mutate(log_results = map(data, logistic_regression)) %>% 
   select(city_state, log_results) %>% 
   unnest %>%
   filter(term == "victim_racewhite") %>% 
@@ -140,3 +144,110 @@ cities, the 95% confidence interval does not overlap with the null value of 1,
 which suggests the disparity between homicides with white vs. non-white victims
 is statistically significant. 
 
+
+# Problem 2
+
+### Loading and cleaning the data
+
+1. Load the dataset
+
+2. Transform the variables for the baby's sex, father's and mother's race, 
+and presence of malformation into factors
+
+3. Check if any variables have missing values
+```{r}
+birthweight_df <- readr::read_csv('./data/birthweight.csv') %>% 
+  mutate(babysex = recode_factor(babysex, `1` = 'Male', `2` = 'Female'),
+         frace = recode_factor(frace, `1` = 'White', `2` = 'Black', 
+                               `3` = 'Asian', `4` = 'Puerto Rican', 
+                               `8` = 'Other', `9` = 'Unknown'),
+         malform = recode_factor(malform, `0` = 'Absent', `1` = 'Present'),
+         mrace = recode_factor(mrace, `1` = 'White', `2` = 'Black',
+                               `3` = 'Asian', `4` = 'Puerto Rican',
+                               `8` = 'Other'))
+
+map(birthweight_df, ~sum(is.na(.)))
+```
+
+### Proposing a regression model for birthweight
+
+I propose a regression model which models birthweight by family income, 
+gestational age, presence of malformations, average number of cigarettes smoked
+per day during pregnancy, and mother's weight gain during pregnancy. These 
+are factors which I believe would influence the birthweight of a baby. 
+
+1. Run a linear regression for my proposed model
+
+2. Plot the residuals by predicted values of my proposed model
+```{r}
+my_model <- lm(data = birthweight_df, bwt ~ fincome + gaweeks + malform + 
+                 smoken + wtgain)
+
+birthweight_df %>% 
+  add_predictions(my_model) %>% 
+  add_residuals(my_model) %>% 
+  ggplot(aes(x = pred, y = resid)) +
+  geom_point(alpha = 0.25)
+```
+
+The majority of predicted values for my model lie within 500 grams of the 
+actual value. There are a handful of outliers with large residuals for
+the smallest predicted values. 
+
+
+### Testing my proposed model against the other 2 models
+1. Write functions for running linear regressions according to the specified 
+model (my proposed model, main effects only, and all effects)
+
+2. Write a function for calculating the root mean square error (RMSE) of each
+cross-validation for each of the three models
+
+3. Make 100 different training and testing datasets based on the original data,
+and run all 3 models on those 100 sets of training and testing sets. Then 
+compute the RMSE for every fitting of a model onto a set of training and testing
+data.
+
+4. Graph the distribution of RMSE's by the specified model.
+```{r}
+my_model_regression <- function(df) {
+  lm(data = df, bwt ~ fincome + gaweeks + malform + smoken + wtgain)
+}
+
+main_fx_regression <- function(df) {
+  lm(data = df, bwt ~ blength + gaweeks)
+}
+
+all_fx_regression <- function(df) {
+  lm(data = birthweight_df, bwt ~ bhead + blength + babysex +
+                     bhead*blength + bhead*babysex + blength*babysex +
+                     bhead*blength*babysex)
+}
+
+rmse_function <- function(df1, df2) {
+  rmse(model = df1, data = df2)
+}
+
+cv_df <- crossv_mc(birthweight_df, 100) %>% 
+  mutate(train = map(train, as_tibble),
+         test = map(test, as_tibble)) %>% 
+  mutate(my_mod = map(train, my_model_regression),
+         main_fx_mod = map(train, main_fx_regression),
+         all_fx_mod = map(train, all_fx_regression)) %>% 
+  mutate(rmse_my_mod = map2_dbl(my_mod, test, rmse_function),
+         rmse_main_fx = map2_dbl(main_fx_mod, test, rmse_function),
+         rmse_all_fx = map2_dbl(all_fx_mod, test, rmse_function))
+
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  gather(key = model, value = rmse) %>% 
+  mutate(model = str_replace(model, "rmse_", ""),
+         model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+```
+
+Comparing the distribution of RMSE's for the three models run over 100 different
+corss-validations, my proposed model (my_mod) has the largest average RMSE of 
+the 3 models. The main effects only model (main_fx) performs better than my_mod,
+but the RMSE's do not appear to be normally distributed. The model with all 
+effects (all_fx) has the smallest average RMSE, and the RMSE's appear to be
+normally distributed. 
