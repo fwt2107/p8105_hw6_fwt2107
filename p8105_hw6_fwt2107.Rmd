@@ -34,7 +34,7 @@ City, MO; and Tulsa, AL
 5. Transform **victim_race** into a binary variable (white vs. non-white)
 
 6. Create a **solved_binary** binary variable for the outcome of each homicide
-(solved vs. unsolved)
+(1 (solved) vs. 0 (unsolved))
 ```{r}
 data_url <- RCurl::getURL('https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv')
 
@@ -44,11 +44,34 @@ homicide_df <- readr::read_csv(data_url) %>%
                              'Tulsa, AL'))) %>% 
   mutate(victim_age = as.numeric(victim_age),
          victim_race = ifelse(victim_race == "White", "white", "non-white"),
-         solved_binary = ifelse(disposition == "Closed by arrest", "solved", 
-                                "unsolved"))
+         solved_binary = ifelse(disposition == "Closed by arrest", 1, 0))
 ```
 
+### Fitting a logistic regression model for resolved vs. unresolved homicides
+### in Baltimore, MD
+
+1. Use the *glm()* function to run a logistic regression modeling the logit
+of the probability of a murder being resolved on victim age, sex, and race
+in Baltimore, MD.
+
+2. Use *broom::tidy()* to clean the output and compute the OR's and 95% CI for
+the estimates
 ```{r}
+baltimore_log <- glm(solved_binary ~ victim_age + victim_sex + victim_race,
+                     data = homicide_df, family = binomial())
 
+baltimore_log %>% 
+  broom::tidy(.) %>% 
+  mutate(OR = exp(estimate),
+         CI_lower_limit = exp(estimate - 1.96*std.error),
+         CI_upper_limit = exp(estimate + 1.96*std.error)) %>% 
+  select(term, estimate, OR, CI_lower_limit, CI_upper_limit)
 ```
+After adjusting for victim age and sex, homicides in Baltimore, MD in which the 
+victim was white had approximately 1.78 times the odds of being resolved 
+compared to homicides in which the victim was non-white. We are 95% confident
+that Baltimore homicides involving white victims had between 1.68 to 1.89 times
+the odds of being resolved compared to homicides involving non-white victims.
+
+
 

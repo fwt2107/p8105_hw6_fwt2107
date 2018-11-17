@@ -139,7 +139,7 @@ $(document).ready(function () {
 <li><p>Remove all homicides which were recorded in Dallas, TX; Phoenix, AZ; Kansas City, MO; and Tulsa, AL</p></li>
 <li><p>Transform <strong>victim_age</strong> into a numeric variable</p></li>
 <li><p>Transform <strong>victim_race</strong> into a binary variable (white vs. non-white)</p></li>
-<li><p>Create a <strong>solved_binary</strong> binary variable for the outcome of each homicide (solved vs. unsolved)</p></li>
+<li><p>Create a <strong>solved_binary</strong> binary variable for the outcome of each homicide (1 (solved) vs. 0 (unsolved))</p></li>
 </ol>
 <pre class="r"><code>data_url &lt;- RCurl::getURL('https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv')
 
@@ -149,10 +149,37 @@ homicide_df &lt;- readr::read_csv(data_url) %&gt;%
                              'Tulsa, AL'))) %&gt;% 
   mutate(victim_age = as.numeric(victim_age),
          victim_race = ifelse(victim_race == &quot;White&quot;, &quot;white&quot;, &quot;non-white&quot;),
-         solved_binary = ifelse(disposition == &quot;Closed by arrest&quot;, &quot;solved&quot;, 
-                                &quot;unsolved&quot;))</code></pre>
+         solved_binary = ifelse(disposition == &quot;Closed by arrest&quot;, 1, 0))</code></pre>
 <pre><code>## Warning in evalq(as.numeric(victim_age), &lt;environment&gt;): NAs introduced by
 ## coercion</code></pre>
+</div>
+<div id="fitting-a-logistic-regression-model-for-resolved-vs.unresolved-homicides" class="section level3">
+<h3>Fitting a logistic regression model for resolved vs. unresolved homicides</h3>
+</div>
+<div id="in-baltimore-md" class="section level3">
+<h3>in Baltimore, MD</h3>
+<ol style="list-style-type: decimal">
+<li><p>Use the <em>glm()</em> function to run a logistic regression modeling the logit of the probability of a murder being resolved on victim age, sex, and race in Baltimore, MD.</p></li>
+<li><p>Use <em>broom::tidy()</em> to clean the output and compute the OR’s and 95% CI for the estimates</p></li>
+</ol>
+<pre class="r"><code>baltimore_log &lt;- glm(solved_binary ~ victim_age + victim_sex + victim_race,
+                     data = homicide_df, family = binomial())
+
+baltimore_log %&gt;% 
+  broom::tidy(.) %&gt;% 
+  mutate(OR = exp(estimate),
+         CI_lower_limit = exp(estimate - 1.96*std.error),
+         CI_upper_limit = exp(estimate + 1.96*std.error)) %&gt;% 
+  select(term, estimate, OR, CI_lower_limit, CI_upper_limit)</code></pre>
+<pre><code>## # A tibble: 5 x 5
+##   term              estimate    OR CI_lower_limit CI_upper_limit
+##   &lt;chr&gt;                &lt;dbl&gt; &lt;dbl&gt;          &lt;dbl&gt;          &lt;dbl&gt;
+## 1 (Intercept)        0.362   1.44           1.35           1.53 
+## 2 victim_age        -0.00147 0.999          0.997          1.000
+## 3 victim_sexMale    -0.510   0.601          0.570          0.633
+## 4 victim_sexUnknown -0.459   0.632          0.520          0.768
+## 5 victim_racewhite   0.577   1.78           1.68           1.89</code></pre>
+<p>After adjusting for victim age and sex, homicides in Baltimore, MD in which the victim was white had approximately 1.78 times the odds of being resolved compared to homicides in which the victim was non-white. We are 95% confident that Baltimore homicides involving white victims had between 1.68 to 1.89 times the odds of being resolved compared to homicides involving non-white victims.</p>
 </div>
 </div>
 
