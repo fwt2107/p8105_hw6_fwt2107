@@ -75,13 +75,28 @@ the odds of being resolved compared to homicides involving non-white victims.
 
 ### Fitting a logistic regression model for resolved vs. unresolved homicides
 ### in all cities listed in the dataset
+1. Wrote *logistic_regression()* function to output a tidied logistic regression
+results from the *glm()* function. Logistic regression was run to describe
+the logit transformation of the probability of a homicide being resolved as a
+function of the victim's race, age, and sex.
+
+2. Ran *logistic_regression()* on the homicides for each location in the dataset
+
+3. Calculated the OR and 95% CI for victim race for each city
+
+4. Created **city_state_order** variable to record the order of the OR's of
+all the cities
+
+5. Plotted the OR's of a homicide being resolved for a white vs. non-white 
+victim after adjusting for age and sex in order of increasing magnitude for
+all cities. 
 ```{r}
 logistic_regression <- function(df) {
   broom::tidy(glm(solved_binary ~ victim_age + victim_sex + victim_race, 
                   data = df, family = binomial()))
 }
 
-homicide_df %>% 
+regression_df <- homicide_df %>% 
   group_by(city_state) %>% 
   nest %>% 
   mutate(log_results = purrr::map(data, logistic_regression)) %>% 
@@ -92,7 +107,36 @@ homicide_df %>%
          CI_lower_limit = exp(estimate - 1.96*std.error),
          CI_upper_limit = exp(estimate + 1.96*std.error)) %>% 
   select(city_state, estimate, OR, CI_lower_limit, CI_upper_limit)
-  
+
+regression_df
+
+city_state_order <- regression_df$city_state[order(regression_df$OR, 
+                                                   decreasing = T)]
+
+regression_df %>% 
+  mutate(city_state = readr::parse_factor(city_state, city_state_order)) %>% 
+  ggplot(aes(x = city_state, y = OR)) + 
+  geom_point() +
+  geom_errorbar(aes(ymin = CI_lower_limit, ymax = CI_upper_limit), 
+                alpha = 0.5) +
+  geom_hline(yintercept = 1, linetype = "longdash", alpha = 0.75) +
+  theme(axis.text.y = element_text(size = 4.5)) +
+  labs(title = "Comparing the odds of a homicide being resolved for a 
+       white vs. non-white victim after adjusting for age and sex",
+       x = "Location",
+       y = "Odds ratio with 95% confidence intervals") +
+  scale_y_continuous(breaks = c(1, 5, 10, 15, 20),
+                     labels = c('1', '5', '10', '15', '20')) +
+  coord_flip()
 ```
 
+In all cities except Tampa, Birmingham, and Durham, after accounting for the 
+victim's age and sex, a homicide with a white victim has greater odds of being 
+resolved compared to a non-white victim (without considering confidence 
+intervals). There are a couple of outlier cities such as Boston and Oakland in 
+which the odds of a homicide with a white victim being resolved are more than 2 
+times the odds of a homicide with a non-white victim being resolved. For several 
+cities, the 95% confidence interval does not overlap with the null value of 1, 
+which suggests the disparity between homicides with white vs. non-white victims
+is statistically significant. 
 
